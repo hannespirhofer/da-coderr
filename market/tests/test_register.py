@@ -1,0 +1,36 @@
+from rest_framework.test import APITestCase
+from rest_framework.status import HTTP_200_OK, HTTP_201_CREATED, HTTP_400_BAD_REQUEST, HTTP_405_METHOD_NOT_ALLOWED
+from django.urls import reverse
+from django.contrib.auth.models import User
+
+from market.models import MarketUser
+
+class RegisterTest(APITestCase):
+    url = reverse('register')
+
+    def test_get_register(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, HTTP_405_METHOD_NOT_ALLOWED)
+
+    def test_post_register_empty(self):
+        data = {}
+        response = self.client.post(self.url, data)
+        self.assertEqual(response.status_code, HTTP_400_BAD_REQUEST)
+
+    def stest_post_login_correct(self):
+        User.objects.create_user(username='testuser', password='testpassword')
+        data = {
+            "username": "exampleUsername",
+            "email": "example@mail.de",
+            "password": "examplePassword",
+            "repeated_password": "examplePassword",
+            "type": "customer"
+        }
+        response = self.client.post(self.url, data, format='json')
+        self.assertEqual(response.status_code, HTTP_201_CREATED)
+        self.assertEqual(User.objects.count(), 1)
+        self.assertEqual(MarketUser.objects.count(), 1)
+        self.assertIn('token', response.data)
+        self.assertIn('user_id', response.data)
+        self.assertIn('email', response.data)
+        self.assertIn('username', response.data)

@@ -1,0 +1,27 @@
+{
+    "username": "testuser",
+    "password": "examplePassword",
+    "repeated_password": "examplePassword",
+    "first_name": "John",
+    "last_name": "Doe",
+    "file": null,
+    "location": "Berlin",
+    "tel": "+49 123456789",
+    "description": "Experienced developer and freelancer.",
+    "working_hours": "09:00-17:00",
+    "type": "customer",
+    "email": "john.doe@example.com"
+}
+
+
+username:testuser
+password:examplePassword
+repeated_password:examplePassword
+first_name:John
+last_name:Doe
+tel:+4923456789
+description:Experiencedeveloper and freelancer.
+working_hours:090-17:00
+type:customer
+email:johndoe@example.com
+location:Bozen
