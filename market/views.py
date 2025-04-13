@@ -4,16 +4,20 @@ from django.db import IntegrityError
 from django.shortcuts import render
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
-from rest_framework.response import Response
 from rest_framework.authtoken.models import Token
-from rest_framework.status import HTTP_200_OK, HTTP_201_CREATED, HTTP_400_BAD_REQUEST
+from rest_framework.filters import SearchFilter
+from rest_framework.generics import RetrieveUpdateAPIView, ListAPIView, RetrieveAPIView
+from rest_framework.status import HTTP_201_CREATED, HTTP_400_BAD_REQUEST
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.views import APIView
-from rest_framework.generics import RetrieveUpdateAPIView, ListAPIView
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.viewsets import ModelViewSet
 
-from market.permissions import isOwnerOr405
-from market.models import MarketUser
-from market.serializers import MarketUserRegisterSerializer, MarketUserShortSerializer, MarketUserSerializer
+from market.pagination import CustomPagination
+from market.filters import OfferFilter
+from market.permissions import isOwnerOr405, IsBusiness, isOfferOwner
+from market.models import MarketUser, Offer, OfferDetail, Order
+from market.serializers import MarketUserRegisterSerializer, MarketUserShortSerializer, MarketUserSerializer, OfferDetailSerializer, OfferWriteSerializer, OfferReadSerializer, OfferListSerializer, OrderSerializer
 
 
 class RegisterView(APIView):
@@ -84,6 +88,45 @@ class BusinessListView(ListAPIView):
     def get_queryset(self):
         return MarketUser.objects.filter(type='business')
 
+class OfferViewset(ModelViewSet):
+    serializer_class = OfferReadSerializer
+    queryset = Offer.objects.all()
+    filterset_class = OfferFilter
+    ordering_fields = ['updated_at', 'min_price']
+    filter_backends = [SearchFilter]
+    search_fields = ['title', 'description']
+    pagination_class = CustomPagination
 
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return OfferWriteSerializer
+        if self.action in ['list', 'retrieve']:
+            return OfferListSerializer
+        return OfferReadSerializer
+
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            return [AllowAny()]
+        return [IsAuthenticated(), IsBusiness(), isOfferOwner()]
+
+    def get_serializer_context(self):
+        is_list_action = self.action == 'list'
+        context = super().get_serializer_context()
+        if is_list_action:
+            context['request'] = None #disable absolute urls
+        return context
+
+    def perform_create(self, serializer):
+        marketuser = MarketUser.objects.get(user=self.request.user)
+        serializer.save(user=marketuser)
+
+class OfferDetailView(RetrieveAPIView):
+    serializer_class = OfferDetailSerializer
+    queryset = OfferDetail.objects.all()
+    permission_classes = [IsAuthenticated]
+
+class OrderViewset(ModelViewSet):
+    serializer_class = OrderSerializer
+    queryset = Order.objects.all()
 
 

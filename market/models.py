@@ -1,6 +1,5 @@
 from django.db import models
 from django.contrib.auth.models import User
-from django.utils import timezone
 from market.constants import CUSTOMER_TYPE
 
 class MarketUser(models.Model):
@@ -20,3 +19,43 @@ class MarketUser(models.Model):
 
     def __str__(self):
         return (f"ID {self.pk}: {self.user.username} [{self.type}]")
+
+#Pakete wie Grafikpaket
+class Offer(models.Model):
+    user = models.ForeignKey(MarketUser, on_delete=models.CASCADE, verbose_name='Market User')
+    title = models.CharField(max_length=100)
+    image = models.FileField(upload_to='offer-images/', blank=True, null=True)
+    description = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    min_price = models.IntegerField()
+    min_delivery_time = models.IntegerField()
+
+    def __str__(self):
+        return f"{self.title} [{self.pk}]"
+
+#DL wie Basic Design
+class OfferDetail(models.Model):
+    title = models.CharField(max_length=100)
+    revisions = models.IntegerField()
+    delivery_time_in_days = models.IntegerField()
+    price = models.DecimalField(max_digits=6, decimal_places=2)
+    features = models.JSONField(default=list)
+    offer_type = models.CharField(max_length=30)
+    offer = models.ForeignKey(Offer, related_name='details', on_delete=models.CASCADE)
+
+    def __str__(self):
+        return f"{self.title} [{self.pk}]"
+
+#Orders
+class Order(models.Model):
+    offerdetail = models.ForeignKey(OfferDetail, on_delete=models.PROTECT, related_name='order_detail')
+    #additional
+    customer_user = models.ForeignKey(MarketUser, on_delete=models.PROTECT, related_name='customer')
+    business_user = models.ForeignKey(MarketUser, on_delete=models.PROTECT, related_name='business')
+    status = models.CharField(max_length=30)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+

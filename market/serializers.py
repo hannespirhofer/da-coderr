@@ -1,6 +1,6 @@
 from django.contrib.auth.models import User
 from rest_framework import serializers
-from market.models import MarketUser
+from market.models import MarketUser, Offer, OfferDetail, Order
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -14,6 +14,14 @@ class MarketUserShortSerializer(serializers.ModelSerializer):
     class Meta:
         model = MarketUser
         fields = ('username', 'email', 'user_id')
+
+class MarketUserOfferSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(source='user.username', read_only=True)
+    first_name = serializers.CharField(source='user.first_name', read_only=True)
+    last_name = serializers.CharField(source='user.last_name', read_only=True)
+    class Meta:
+        model = MarketUser
+        fields = ('username', 'first_name', 'last_name')
 
 class MarketUserRegisterSerializer(serializers.ModelSerializer):
     username = serializers.CharField(write_only=True)
@@ -78,3 +86,55 @@ class MarketUserSerializer(serializers.ModelSerializer):
 
 
 
+
+
+
+class OfferDetailHyperLinkSerializer(serializers.HyperlinkedModelSerializer):
+    url = serializers.HyperlinkedIdentityField(
+        view_name='offerdetail',
+        lookup_field='pk'
+    )
+    class Meta:
+        model = OfferDetail
+        fields = ['id', 'url']
+
+class OfferDetailSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = OfferDetail
+        # fields = '__all__'
+        exclude = ['offer']
+
+class OfferWriteSerializer(serializers.ModelSerializer):
+    details = OfferDetailSerializer(many=True)
+    user = serializers.PrimaryKeyRelatedField(read_only=True)
+
+    class Meta:
+        model = Offer
+        fields = "__all__"
+
+    def create(self, validated_data):
+        details = validated_data.pop('details', [])
+        offer = Offer.objects.create(**validated_data)
+        for d in details:
+            OfferDetail.objects.create(offer=offer, **d)
+        return offer
+
+class OfferReadSerializer(serializers.ModelSerializer):
+    details = OfferDetailSerializer(many=True)
+    user_details = MarketUserOfferSerializer(source='user', read_only=True)
+
+    class Meta:
+        model = Offer
+        fields = "__all__"
+
+class OfferListSerializer(serializers.ModelSerializer):
+    details = OfferDetailHyperLinkSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Offer
+        fields = "__all__"
+
+class OrderSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Order
+        fields = "__all__"
