@@ -5,3 +5,4 @@ from market import models
 admin.site.register(models.MarketUser)
 admin.site.register(models.Offer)
 admin.site.register(models.OfferDetail)
+admin.site.register(models.Order)

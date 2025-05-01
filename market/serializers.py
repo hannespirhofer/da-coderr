@@ -87,8 +87,6 @@ class MarketUserSerializer(serializers.ModelSerializer):
 
 
 
-
-
 class OfferDetailHyperLinkSerializer(serializers.HyperlinkedModelSerializer):
     url = serializers.HyperlinkedIdentityField(
         view_name='offerdetail',
@@ -101,7 +99,6 @@ class OfferDetailHyperLinkSerializer(serializers.HyperlinkedModelSerializer):
 class OfferDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = OfferDetail
-        # fields = '__all__'
         exclude = ['offer']
 
 class OfferWriteSerializer(serializers.ModelSerializer):
@@ -134,7 +131,30 @@ class OfferListSerializer(serializers.ModelSerializer):
         model = Offer
         fields = "__all__"
 
+
+
+
 class OrderSerializer(serializers.ModelSerializer):
+    title = serializers.CharField(source='offerdetail.title', max_length=100)
+    revisions = serializers.IntegerField(source='offerdetail.revisions')
+    delivery_time_in_days = serializers.IntegerField(source='offerdetail.delivery_time_in_days')
+    price = serializers.DecimalField(source='offerdetail.price', max_digits=6, decimal_places=2)
+    features = serializers.JSONField(source='offerdetail.features', default=list)
+    offer_type = serializers.CharField(source='offerdetail.offer_type', max_length=30)
+
     class Meta:
         model = Order
-        fields = "__all__"
+        fields = [
+            "id",
+            "customer_user",
+            "business_user",
+            "title",
+            "revisions",
+            "delivery_time_in_days",
+            "price",
+            "features",
+            "offer_type",
+            "status",
+            "created_at",
+            "updated_at"
+        ]

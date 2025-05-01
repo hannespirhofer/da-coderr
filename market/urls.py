@@ -26,7 +26,6 @@ urlpatterns = [
     # OfferDetail View
     path('offerdetails/<int:pk>/', OfferDetailView.as_view(), name='offerdetail'),
 
-
     # DRF Auth /login /register
     path('api-auth/', include('rest_framework.urls'))
 ]

@@ -1,17 +1,19 @@
 from json import JSONEncoder
 from urllib import response
 from django.db import IntegrityError
-from django.shortcuts import render
+from django.shortcuts import get_object_or_404, render
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
 from rest_framework.authtoken.models import Token
 from rest_framework.filters import SearchFilter
 from rest_framework.generics import RetrieveUpdateAPIView, ListAPIView, RetrieveAPIView
-from rest_framework.status import HTTP_201_CREATED, HTTP_400_BAD_REQUEST
+from rest_framework.status import HTTP_200_OK, HTTP_201_CREATED, HTTP_204_NO_CONTENT, HTTP_400_BAD_REQUEST, HTTP_403_FORBIDDEN, HTTP_404_NOT_FOUND
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
+
+from django.db.models import Q
 
 from market.pagination import CustomPagination
 from market.filters import OfferFilter
@@ -128,5 +130,74 @@ class OfferDetailView(RetrieveAPIView):
 class OrderViewset(ModelViewSet):
     serializer_class = OrderSerializer
     queryset = Order.objects.all()
+    http_method_names = ['get', 'post', 'patch', 'delete']
+
+    def get_permissions(self):
+        return [IsAuthenticated()]
+
+    def get_queryset(self):
+        try:
+            marketuser = MarketUser.objects.get(user=self.request.user)
+        except MarketUser.DoesNotExist:
+            return Order.objects.none()
+        return Order.objects.filter(
+            Q(customer_user=marketuser) | Q(business_user=marketuser)
+        )
+
+    def create(self, request, *args, **kwargs):
+        try:
+            offerdetail = OfferDetail.objects.get(id=request.data["offer_detail_id"])
+        except OfferDetail.DoesNotExist:
+            return Response({'error': 'Offerdetail not found.'}, status=HTTP_400_BAD_REQUEST)
+
+        try:
+            marketuser = MarketUser.objects.get(user=request.user)
+        except MarketUser.DoesNotExist:
+            return Response({'error': 'Only MarketUser are allowed to create Orders.'}, status=HTTP_400_BAD_REQUEST)
+
+        if marketuser.type != "customer":
+            return Response({'error': 'Only Customers are allowed to create Orders.'}, status=HTTP_403_FORBIDDEN)
 
 
+        order = Order.objects.create(
+            offerdetail = offerdetail,
+            customer_user=marketuser,
+            business_user=offerdetail.offer.user,
+            status="in progress"
+        )
+
+        serializer = self.get_serializer(order)
+        return Response(serializer.data, status=HTTP_201_CREATED)
+
+    def partial_update(self, request, *args, **kwargs):
+        order_id = self.kwargs.get('pk')
+
+        try:
+            order = Order.objects.get(id=order_id)
+        except Order.DoesNotExist:
+            return Response({'error': 'Order not found.'}, status=HTTP_400_BAD_REQUEST)
+
+        try:
+            marketuser = MarketUser.objects.get(user=request.user)
+        except MarketUser.DoesNotExist:
+            return Response({'error': 'MarketUser not found.'}, status=HTTP_400_BAD_REQUEST)
+
+        if order.customer_user != marketuser:
+            return Response({'error': 'You are not the owner and cannot perform update on this order.'}, status=HTTP_403_FORBIDDEN)
+
+        serializer = self.get_serializer(order, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        return Response(serializer.data, status=HTTP_200_OK)
+
+    def destroy(self, request, *args, **kwargs):
+        order_id = self.kwargs.get('pk')
+
+        if not request.user.is_superuser:
+            return Response({'error': 'Only admin can perform this action.'}, status=HTTP_403_FORBIDDEN)
+
+        order = get_object_or_404(Order, id=order_id)
+        order.delete()
+
+        return Response(status=HTTP_204_NO_CONTENT)

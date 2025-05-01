@@ -18,7 +18,7 @@ class MarketUser(models.Model):
     type = models.CharField(choices=CUSTOMER_TYPE, max_length=20)
 
     def __str__(self):
-        return (f"ID {self.pk}: {self.user.username} [{self.type}]")
+        return (f"ID {self.pk}: {self.first_name} {self.last_name} ({self.user.username} [{self.type}])")
 
 #Pakete wie Grafikpaket
 class Offer(models.Model):
@@ -49,13 +49,17 @@ class OfferDetail(models.Model):
 
 #Orders
 class Order(models.Model):
-    offerdetail = models.ForeignKey(OfferDetail, on_delete=models.PROTECT, related_name='order_detail')
+    offerdetail = models.ForeignKey(OfferDetail, on_delete=models.PROTECT, related_name='order')
     #additional
     customer_user = models.ForeignKey(MarketUser, on_delete=models.PROTECT, related_name='customer')
     business_user = models.ForeignKey(MarketUser, on_delete=models.PROTECT, related_name='business')
+    # get title, revisions, delivery_time, price, features and type from offerdetail here too
     status = models.CharField(max_length=30)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.id} - Order from: {self.customer_user.first_name}"
 
 
 
