@@ -1,6 +1,6 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
-from market.views import LoginView, OfferDetailView, OrderViewset, RegisterView, ProfileDetailView, CustomerListView, BusinessListView, OfferViewset
+from market.views import BusinessOrderCount, LoginView, OfferDetailView, OrderViewset, RegisterView, ProfileDetailView, CustomerListView, BusinessListView, OfferViewset
 
 router = DefaultRouter()
 router.register(r'offers', OfferViewset, basename='offers')
@@ -25,6 +25,11 @@ urlpatterns = [
 
     # OfferDetail View
     path('offerdetails/<int:pk>/', OfferDetailView.as_view(), name='offerdetail'),
+
+    # Order Custom Views
+    path('order-count/<int:pk>/', BusinessOrderCount.as_view(), name='business-order-count'),
+    path('completed-order-count/<int:pk>/', OfferDetailView.as_view(), name='offerdetail'),
+
 
     # DRF Auth /login /register
     path('api-auth/', include('rest_framework.urls'))

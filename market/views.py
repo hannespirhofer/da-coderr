@@ -1,7 +1,5 @@
-from json import JSONEncoder
 from urllib import response
-from django.db import IntegrityError
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
 from rest_framework.authtoken.models import Token
@@ -201,3 +199,19 @@ class OrderViewset(ModelViewSet):
         order.delete()
 
         return Response(status=HTTP_204_NO_CONTENT)
+
+class BusinessOrderCount(APIView):
+    permission_classes = [IsAuthenticated, IsBusiness]
+
+    def get(self, request, *args, **kwargs):
+        business_user_id = kwargs.get('pk')
+
+        try:
+            business_user = MarketUser.objects.get(pk=business_user_id)
+        except MarketUser.DoesNotExist:
+            return Response({"error": "No business user found with this id."}, status=HTTP_404_NOT_FOUND)
+
+        orders_count = Order.objects.filter(Q(status="in progress") & Q(business_user__pk=business_user_id)).count()
+        return Response({"order_count": orders_count}, status=HTTP_200_OK)
+
+
