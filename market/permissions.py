@@ -27,6 +27,21 @@ class IsBusiness(BasePermission):
             return False
         return bool(marketuser and marketuser.type == 'business')
 
+class IsCustomer(BasePermission):
+    """
+    Allows access only to customer accounts.
+    """
+    message = "Restricted to Customer Users"
+
+    def has_permission(self, request, view):
+        user = request.user
+        try:
+            marketuser = MarketUser.objects.get(user=user)
+        except MarketUser.DoesNotExist:
+            self.message = "No Marketuser connected to this user"
+            return False
+        return bool(marketuser and marketuser.type == 'customer')
+
 class isOfferOwner(BasePermission):
     """
     Allows only offer owner

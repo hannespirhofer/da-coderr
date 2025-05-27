@@ -51,8 +51,8 @@ class OfferDetail(models.Model):
 class Order(models.Model):
     offerdetail = models.ForeignKey(OfferDetail, on_delete=models.PROTECT, related_name='order')
     #additional
-    customer_user = models.ForeignKey(MarketUser, on_delete=models.PROTECT, related_name='customer')
-    business_user = models.ForeignKey(MarketUser, on_delete=models.PROTECT, related_name='business')
+    customer_user = models.ForeignKey(MarketUser, on_delete=models.PROTECT, related_name='order_customer')
+    business_user = models.ForeignKey(MarketUser, on_delete=models.PROTECT, related_name='order_business')
     # get title, revisions, delivery_time, price, features and type from offerdetail here too
     status = models.CharField(max_length=30)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -62,4 +62,14 @@ class Order(models.Model):
         return f"{self.id} - Order from: {self.customer_user.first_name}"
 
 
+class Review(models.Model):
+    business_user = models.ForeignKey(MarketUser, on_delete=models.PROTECT, related_name='review_business_user')
+    reviewer = models.ForeignKey(MarketUser, on_delete=models.PROTECT, related_name='reviewer')
+    rating = models.PositiveIntegerField()
+    description = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.id} - {self.reviewer.first_name} rated {self.business_user.first_name} | Rating: {self.rating}"
 

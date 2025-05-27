@@ -1,6 +1,6 @@
 from django.contrib.auth.models import User
 from rest_framework import serializers
-from market.models import MarketUser, Offer, OfferDetail, Order
+from market.models import MarketUser, Offer, OfferDetail, Order, Review
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -131,9 +131,6 @@ class OfferListSerializer(serializers.ModelSerializer):
         model = Offer
         fields = "__all__"
 
-
-
-
 class OrderSerializer(serializers.ModelSerializer):
     title = serializers.CharField(source='offerdetail.title', max_length=100)
     revisions = serializers.IntegerField(source='offerdetail.revisions')
@@ -158,3 +155,20 @@ class OrderSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at"
         ]
+
+
+class ReviewSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Review
+        fields = "__all__"
+
+class ReviewWriteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Review
+        fields = [
+            "business_user",
+            "rating",
+            "description"
+        ]
+
+

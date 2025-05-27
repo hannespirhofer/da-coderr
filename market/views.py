@@ -1,4 +1,4 @@
-from urllib import response
+import pdb
 from django.shortcuts import get_object_or_404
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
@@ -15,9 +15,9 @@ from django.db.models import Q
 
 from market.pagination import CustomPagination
 from market.filters import OfferFilter
-from market.permissions import isOwnerOr405, IsBusiness, isOfferOwner
-from market.models import MarketUser, Offer, OfferDetail, Order
-from market.serializers import MarketUserRegisterSerializer, MarketUserShortSerializer, MarketUserSerializer, OfferDetailSerializer, OfferWriteSerializer, OfferReadSerializer, OfferListSerializer, OrderSerializer
+from market.permissions import IsCustomer, isOwnerOr405, IsBusiness, isOfferOwner
+from market.models import MarketUser, Offer, OfferDetail, Order, Review
+from market.serializers import MarketUserRegisterSerializer, MarketUserShortSerializer, MarketUserSerializer, OfferDetailSerializer, OfferWriteSerializer, OfferReadSerializer, OfferListSerializer, OrderSerializer, ReviewSerializer, ReviewWriteSerializer
 
 
 class RegisterView(APIView):
@@ -129,9 +129,7 @@ class OrderViewset(ModelViewSet):
     serializer_class = OrderSerializer
     queryset = Order.objects.all()
     http_method_names = ['get', 'post', 'patch', 'delete']
-
-    def get_permissions(self):
-        return [IsAuthenticated()]
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         try:
@@ -213,5 +211,81 @@ class BusinessOrderCount(APIView):
 
         orders_count = Order.objects.filter(Q(status="in progress") & Q(business_user__pk=business_user_id)).count()
         return Response({"order_count": orders_count}, status=HTTP_200_OK)
+
+class BusinessCompletedOrderCount(APIView):
+    permission_classes = [IsAuthenticated, IsBusiness]
+
+    def get(self, request, *args, **kwargs):
+        business_user_id = kwargs.get('pk')
+
+        try:
+            business_user = MarketUser.objects.get(pk=business_user_id)
+        except MarketUser.DoesNotExist:
+            return Response({"error": "No business user found with this id."}, status=HTTP_404_NOT_FOUND)
+
+        orders_count = Order.objects.filter(Q(status="completed") & Q(business_user__pk=business_user_id)).count()
+        return Response({"completed_order_count": orders_count}, status=HTTP_200_OK)
+
+class ReviewViewset(ModelViewSet):
+    serializer_class = ReviewSerializer
+
+    def get_queryset(self):
+        business_user_id = self.request.query_params.get('business_user_id')
+        reviewer_id = self.request.query_params.get('reviewer_id')
+        ordering = self.request.query_params.get('ordering')
+
+        q = Q()
+        if (business_user_id is not None):
+            q &= Q(business_user=business_user_id)
+        if (reviewer_id is not None):
+            q &= Q(reviewer=reviewer_id)
+
+        queryset = Review.objects.filter(q)
+
+        if ordering and ordering in ["updated_at", "rating"]:
+            queryset = queryset.order_by(ordering)
+
+        return queryset
+
+    def get_permissions(self):
+        if (self.request.method == 'POST'):
+            return [IsAuthenticated(), IsCustomer()]
+        return [IsAuthenticated()]
+
+    def get_serializer_class(self):
+        if (self.action in ['create', 'update']):
+            return ReviewWriteSerializer
+        return ReviewSerializer
+
+    def create(self, request, *args, **kwargs):
+        try:
+            reviewer = MarketUser.objects.get(user=request.user)
+        except MarketUser.DoesNotExist:
+            return Response('No customer account found with this id.', status=HTTP_403_FORBIDDEN)
+
+        try:
+            business_user = MarketUser.objects.get(pk=request.data.get("business_user"))
+        except MarketUser.DoesNotExist:
+            return Response('No business account found with this id.', status=HTTP_403_FORBIDDEN)
+
+        reviews = Review.objects.filter(business_user=business_user.pk, reviewer=reviewer.pk)
+        if len(reviews) >= 1:
+            return Response("No new reviews allowed", status=HTTP_403_FORBIDDEN)
+
+        data = request.data.copy()
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        review = serializer.save(reviewer=reviewer)
+
+        full_review = ReviewSerializer(review).data
+
+        return Response(full_review, status=HTTP_201_CREATED)
+
+    def update(self, request, *args, **kwargs):
+        #get the authenticated user
+        #serialize and validate the data
+        #check that the auth user is the owner of the review of the Review__id
+        #update, save and return
+        return Response('def update called')
 
 

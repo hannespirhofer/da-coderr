@@ -1,10 +1,11 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
-from market.views import BusinessOrderCount, LoginView, OfferDetailView, OrderViewset, RegisterView, ProfileDetailView, CustomerListView, BusinessListView, OfferViewset
+from market.views import BusinessCompletedOrderCount, BusinessOrderCount, LoginView, OfferDetailView, OrderViewset, RegisterView, ProfileDetailView, CustomerListView, BusinessListView, OfferViewset, ReviewViewset
 
 router = DefaultRouter()
 router.register(r'offers', OfferViewset, basename='offers')
 router.register(r'orders', OrderViewset, basename='orders')
+router.register(r'reviews', ReviewViewset, basename='reviews')
 
 
 urlpatterns = [
@@ -28,7 +29,7 @@ urlpatterns = [
 
     # Order Custom Views
     path('order-count/<int:pk>/', BusinessOrderCount.as_view(), name='business-order-count'),
-    path('completed-order-count/<int:pk>/', OfferDetailView.as_view(), name='offerdetail'),
+    path('completed-order-count/<int:pk>/', BusinessCompletedOrderCount.as_view(), name='business-completed-order-count'),
 
 
     # DRF Auth /login /register
