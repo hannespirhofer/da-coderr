@@ -329,8 +329,7 @@ class ReviewViewset(ModelViewSet):
         return Response('Review deleted', status=HTTP_204_NO_CONTENT)
 
 class BaseInfoView(APIView):
-    permission_classes = [IsAuthenticated]
-    
+
     def get(self, request, format=None):
         review_count = Review.objects.count()
         average_rating = Review.objects.aggregate(Avg('rating'))['rating__avg']
