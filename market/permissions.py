@@ -8,7 +8,14 @@ class isOwnerOr405(BasePermission):
     Checking if the request user is the owner
     """
     def has_object_permission(self, request, view, obj):
-        if obj.user != request.user:
+        #obj = Marketuser
+        #request.user = User obj
+
+        request_marketuser = MarketUser.objects.get(user = request.user)
+
+        print(obj.user != request_marketuser)
+
+        if obj.user == request_marketuser:
             raise AuthenticationFailed()
         return True
 

@@ -10,8 +10,9 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
+from rest_framework.exceptions import NotFound, PermissionDenied
 
-from django.db.models import Q
+from django.db.models import Q, Avg
 
 from market.pagination import CustomPagination
 from market.filters import OfferFilter
@@ -98,7 +99,7 @@ class OfferViewset(ModelViewSet):
     pagination_class = CustomPagination
 
     def get_serializer_class(self):
-        if self.action == 'create':
+        if self.action in ['create', 'update', 'partial_update']:
             return OfferWriteSerializer
         if self.action in ['list', 'retrieve']:
             return OfferListSerializer
@@ -159,7 +160,7 @@ class OrderViewset(ModelViewSet):
             offerdetail = offerdetail,
             customer_user=marketuser,
             business_user=offerdetail.offer.user,
-            status="in progress"
+            status="in_progress"
         )
 
         serializer = self.get_serializer(order)
@@ -178,8 +179,8 @@ class OrderViewset(ModelViewSet):
         except MarketUser.DoesNotExist:
             return Response({'error': 'MarketUser not found.'}, status=HTTP_400_BAD_REQUEST)
 
-        if order.customer_user != marketuser:
-            return Response({'error': 'You are not the owner and cannot perform update on this order.'}, status=HTTP_403_FORBIDDEN)
+        # if order.customer_user != marketuser:
+        #     return Response({'error': 'You are not the owner and cannot perform update on this order.'}, status=HTTP_403_FORBIDDEN)
 
         serializer = self.get_serializer(order, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
@@ -199,7 +200,7 @@ class OrderViewset(ModelViewSet):
         return Response(status=HTTP_204_NO_CONTENT)
 
 class BusinessOrderCount(APIView):
-    permission_classes = [IsAuthenticated, IsBusiness]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
         business_user_id = kwargs.get('pk')
@@ -248,12 +249,12 @@ class ReviewViewset(ModelViewSet):
         return queryset
 
     def get_permissions(self):
-        if (self.request.method == 'POST'):
+        if (self.request.method in ['POST', 'PATCH', 'UPDATE', 'DELETE']):
             return [IsAuthenticated(), IsCustomer()]
         return [IsAuthenticated()]
 
     def get_serializer_class(self):
-        if (self.action in ['create', 'update']):
+        if (self.action in ['create', 'update', 'partial_update']):
             return ReviewWriteSerializer
         return ReviewSerializer
 
@@ -282,10 +283,59 @@ class ReviewViewset(ModelViewSet):
         return Response(full_review, status=HTTP_201_CREATED)
 
     def update(self, request, *args, **kwargs):
-        #get the authenticated user
-        #serialize and validate the data
-        #check that the auth user is the owner of the review of the Review__id
-        #update, save and return
-        return Response('def update called')
+        
+        review_id = self.kwargs.get("pk")
+        if review_id is not None:
+            try:
+                review = Review.objects.get(pk=review_id)
+            except Review.DoesNotExist:
+                raise NotFound('Review with this id not found', code=HTTP_400_BAD_REQUEST)
+        
+        try:
+            request_marketuser = MarketUser.objects.get(user=self.request.user)
+        except MarketUser.DoesNotExist:
+            raise NotFound('No Profile found.', code=HTTP_400_BAD_REQUEST)
+        
+        review_user = review.reviewer
+        if not review_user:
+            raise NotFound('Reviewer not found', code=HTTP_400_BAD_REQUEST)
+        
+        if request_marketuser != review_user:
+            raise PermissionDenied('Only Creators can update the review', code=HTTP_403_FORBIDDEN)
+        
+        # checks passed - update/patch the instance
 
+        serializer = self.get_serializer(review, data=self.request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
 
+        review_full = ReviewSerializer(review)
+
+        return Response(review_full.data, status=HTTP_200_OK)
+
+    def destroy(self, request, *args, **kwargs):
+        try:
+            review = Review.objects.get(pk=self.kwargs.get("pk"))
+        except Review.DoesNotExist:
+            raise NotFound('Review not found', code=HTTP_400_BAD_REQUEST)
+        
+        request_marketuser = MarketUser.objects.get(pk=self.request.user.pk)
+
+        if review.reviewer != request_marketuser:
+            raise PermissionDenied('Only Creator can perform this action', code=HTTP_403_FORBIDDEN)
+        
+        review.delete()
+
+        return Response('Review deleted', status=HTTP_204_NO_CONTENT)
+
+class BaseInfoView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request, format=None):
+        review_count = Review.objects.count()
+        average_rating = Review.objects.aggregate(Avg('rating'))['rating__avg']
+        business_profile_count = MarketUser.objects.filter(type='business').count()
+        offer_count = Offer.objects.count()
+
+        data_dict = {k: locals()[k] for k in ["review_count", "average_rating", "business_profile_count", "offer_count"]}
+        return Response(data_dict, status=HTTP_200_OK)

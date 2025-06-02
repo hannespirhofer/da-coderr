@@ -116,6 +116,27 @@ class OfferWriteSerializer(serializers.ModelSerializer):
             OfferDetail.objects.create(offer=offer, **d)
         return offer
 
+    def update(self, instance, validated_data):
+        details = validated_data.pop('details', [])
+
+        for attr,value in validated_data.items(): #create a list of the object to loop
+            setattr(instance, attr, value) #set key and value on the instance   
+        
+        instance.save() # save Offer instance
+
+        for detail_data in details:
+            offer_detail_id = detail_data.get("id")
+            if offer_detail_id:
+                try:
+                    offer_detail = OfferDetail.objects.get(pk=offer_detail_id)
+                    for attr, value in detail_data.items():
+                        setattr(offer_detail ,attr, value)
+                    offer_detail.save()
+                except OfferDetail.DoesNotExist:
+                    continue
+
+        return instance
+
 class OfferReadSerializer(serializers.ModelSerializer):
     details = OfferDetailSerializer(many=True)
     user_details = MarketUserOfferSerializer(source='user', read_only=True)

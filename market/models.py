@@ -4,7 +4,7 @@ from market.constants import CUSTOMER_TYPE
 
 class MarketUser(models.Model):
     #registration fields
-    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    user = models.OneToOneField(User, on_delete=models.CASCADE, primary_key=True)
     #autoadded fields
     created_at = models.DateTimeField(auto_now_add=True)
     #patch fields
@@ -18,7 +18,7 @@ class MarketUser(models.Model):
     type = models.CharField(choices=CUSTOMER_TYPE, max_length=20)
 
     def __str__(self):
-        return (f"ID {self.pk}: {self.first_name} {self.last_name} ({self.user.username} [{self.type}])")
+        return (f"Marketuser PK: {self.pk}; User PK {self.user.pk} - {self.first_name} {self.last_name} ({self.user.username} [{self.type}])")
 
 #Pakete wie Grafikpaket
 class Offer(models.Model):
@@ -28,8 +28,9 @@ class Offer(models.Model):
     description = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    min_price = models.IntegerField()
-    min_delivery_time = models.IntegerField()
+    min_price = models.IntegerField(blank=True, null=True)
+    min_delivery_time = models.IntegerField(blank=True, null=True)
+
 
     def __str__(self):
         return f"{self.title} [{self.pk}]"
