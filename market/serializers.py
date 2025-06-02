@@ -84,9 +84,6 @@ class MarketUserSerializer(serializers.ModelSerializer):
             instance.user.save()
         return instance
 
-
-
-
 class OfferDetailHyperLinkSerializer(serializers.HyperlinkedModelSerializer):
     url = serializers.HyperlinkedIdentityField(
         view_name='offerdetail',
@@ -176,7 +173,6 @@ class OrderSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at"
         ]
-
 
 class ReviewSerializer(serializers.ModelSerializer):
     class Meta:

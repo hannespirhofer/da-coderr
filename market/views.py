@@ -116,10 +116,19 @@ class OfferViewset(ModelViewSet):
         if is_list_action:
             context['request'] = None #disable absolute urls
         return context
-
-    def perform_create(self, serializer):
+    
+    def create(self, request, *args, **kwargs):
         marketuser = MarketUser.objects.get(user=self.request.user)
+        serializer = self.get_serializer(data=self.request.data)
+        serializer.is_valid(raise_exception=True)
+
         serializer.save(user=marketuser)
+        return Response(serializer.data, status=HTTP_201_CREATED)
+
+    # def perform_create(self, serializer):
+    #     marketuser = MarketUser.objects.get(user=self.request.user)
+    #     pdb.set_trace()
+    #     serializer.save(user=marketuser)
 
 class OfferDetailView(RetrieveAPIView):
     serializer_class = OfferDetailSerializer
@@ -338,3 +347,5 @@ class BaseInfoView(APIView):
 
         data_dict = {k: locals()[k] for k in ["review_count", "average_rating", "business_profile_count", "offer_count"]}
         return Response(data_dict, status=HTTP_200_OK)
+
+
