@@ -1,26 +1,26 @@
-# Fiverr-Klon Backend (Developer Akademie Projekt)
+# Fiverr Clone Backend (Developer Akademie Project)
 
-Dies ist das Backend für einen Fiverr-Klon, das im Rahmen meiner Ausbildung bei der **Developer Akademie** entstanden ist. Die Umsetzung erfolgte auf Basis eines von der Akademie bereitgestellten Frontends.  
+This is the backend for a Fiverr clone, developed as part of my training at the **Developer Akademie**. The frontend was provided by the academy, and I implemented the backend using Django.
 
-## 🛠️ Technologien
+## 🛠️ Tech Stack
 
 - **Python**
 - **Django**
 - **Django REST Framework**
-- **SQLite** (Standard, einfach austauschbar)
+- **SQLite** (default, easily replaceable)
 
-## 🔗 Funktionen (Auszug)
+## 🔗 Core Features
 
-- Benutzer- & Anbieter-Accounts
-- Angebots- und Bestellverwaltung
-- Bewertungssystem
-- Authentifizierung via Token
+- User & provider accounts
+- Offer and order management
+- Review system
+- Token-based authentication
 
-## 🚀 Setup
+## 🚀 Getting Started
 
 ```bash
-git clone https://github.com/dein-username/dein-repo.git
-cd dein-repo
+git clone https://github.com/your-username/your-repo.git
+cd your-repo
 pip install -r requirements.txt
 python manage.py migrate
 python manage.py runserver
