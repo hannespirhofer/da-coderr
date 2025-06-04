@@ -5,12 +5,12 @@ from django.contrib.auth import authenticate
 from rest_framework.authtoken.models import Token
 from rest_framework.filters import SearchFilter
 from rest_framework.generics import RetrieveUpdateAPIView, ListAPIView, RetrieveAPIView
+from rest_framework.exceptions import NotFound, PermissionDenied, NotAcceptable
 from rest_framework.status import HTTP_200_OK, HTTP_201_CREATED, HTTP_204_NO_CONTENT, HTTP_400_BAD_REQUEST, HTTP_403_FORBIDDEN, HTTP_404_NOT_FOUND
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
-from rest_framework.exceptions import NotFound, PermissionDenied
 
 from django.db.models import Q, Avg
 
@@ -18,7 +18,7 @@ from market.pagination import CustomPagination
 from market.filters import OfferFilter
 from market.permissions import IsCustomer, isOwnerOr405, IsBusiness, isOfferOwner
 from market.models import MarketUser, Offer, OfferDetail, Order, Review
-from market.serializers import MarketUserRegisterSerializer, MarketUserShortSerializer, MarketUserSerializer, OfferDetailSerializer, OfferWriteSerializer, OfferReadSerializer, OfferListSerializer, OrderSerializer, ReviewSerializer, ReviewWriteSerializer
+from market.serializers import MarketUserRegisterSerializer, MarketUserShortSerializer, MarketUserSerializer, OfferDetailSerializer, OfferWriteSerializer, OfferReadSerializer, OfferListSerializer, OrderSerializer, ReviewSerializer, ReviewWriteSerializer, OfferReadAfterWriteSerializer
 
 
 class RegisterView(APIView):
@@ -43,6 +43,7 @@ class RegisterView(APIView):
 
         return Response(response, status = HTTP_201_CREATED)
 
+
 class LoginView(APIView):
     def post(self, request):
         username = request.data.get('username', None)
@@ -65,6 +66,7 @@ class LoginView(APIView):
         else:
             return Response({'error': 'Wrong credentials.'}, status = HTTP_400_BAD_REQUEST)
 
+
 class ProfileDetailView(RetrieveUpdateAPIView):
     serializer_class = MarketUserSerializer
     http_method_names = ['get', 'patch']
@@ -74,6 +76,19 @@ class ProfileDetailView(RetrieveUpdateAPIView):
         pk = self.kwargs.get('pk')
         queryset = MarketUser.objects.filter(pk=pk)
         return queryset
+    
+    def get(self, request, *args, **kwargs):
+        market_userid = kwargs.get("pk")
+
+        if market_userid is not None:
+            try:
+                marketuser = MarketUser.objects.get(pk=market_userid)
+            except MarketUser.DoesNotExist:
+                raise NotFound('User dont exist', code=HTTP_404_NOT_FOUND)
+        
+        data = self.get_serializer(instance=marketuser)
+        return Response(data.data, status=HTTP_200_OK)
+
 
 class CustomerListView(ListAPIView):
     serializer_class = MarketUserSerializer
@@ -81,6 +96,14 @@ class CustomerListView(ListAPIView):
 
     def get_queryset(self):
         return MarketUser.objects.filter(type='customer')
+    
+    def list(self, request, *args, **kwargs):
+        response = super().list(request, *args, **kwargs)
+        for item in response.data:
+            item.pop('email', None)
+            item.pop('created_at', None)
+        return response
+
 
 class BusinessListView(ListAPIView):
     serializer_class = MarketUserSerializer
@@ -88,9 +111,17 @@ class BusinessListView(ListAPIView):
 
     def get_queryset(self):
         return MarketUser.objects.filter(type='business')
+    
+    def list(self, request, *args, **kwargs):
+        response = super().list(request, *args, **kwargs)
+        for item in response.data:
+            item.pop('email', None)
+            item.pop('created_at', None)
+        return response
+
 
 class OfferViewset(ModelViewSet):
-    serializer_class = OfferReadSerializer
+    # serializer_class = OfferReadSerializer
     queryset = Offer.objects.all()
     filterset_class = OfferFilter
     ordering_fields = ['updated_at', 'min_price']
@@ -99,10 +130,12 @@ class OfferViewset(ModelViewSet):
     pagination_class = CustomPagination
 
     def get_serializer_class(self):
-        if self.action in ['create', 'update', 'partial_update']:
+        if self.action in ['create', 'partial_update']:
             return OfferWriteSerializer
         if self.action in ['list', 'retrieve']:
             return OfferListSerializer
+        if self.action == 'update':
+            raise PermissionDenied('PUT not allowed', code=HTTP_403_FORBIDDEN)
         return OfferReadSerializer
 
     def get_permissions(self):
@@ -119,21 +152,66 @@ class OfferViewset(ModelViewSet):
     
     def create(self, request, *args, **kwargs):
         marketuser = MarketUser.objects.get(user=self.request.user)
-        serializer = self.get_serializer(data=self.request.data)
+        details = request.data.pop('details', None)
+        
+        # Abort early if details not ok
+        if len(details) != 3:
+            raise NotAcceptable('Details are not correct', code=HTTP_400_BAD_REQUEST)
+        
+        serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-
         serializer.save(user=marketuser)
-        return Response(serializer.data, status=HTTP_201_CREATED)
+        
+        #handle details - validate and save them to the instance
+        if details is not None:
+            for detail in details:
+                detailserializer = OfferDetailSerializer(data=detail)
+                detailserializer.is_valid(raise_exception=True)
+                detailserializer.save(offer=serializer.instance)
 
-    # def perform_create(self, serializer):
-    #     marketuser = MarketUser.objects.get(user=self.request.user)
-    #     pdb.set_trace()
-    #     serializer.save(user=marketuser)
+        # get new serializer and send this data back
+        res_serializer = OfferReadAfterWriteSerializer(serializer.instance)
+        return Response(res_serializer.data, status=HTTP_201_CREATED)
+    
+    def partial_update(self, request, *args, **kwargs):
+        marketuser = MarketUser.objects.get(user=self.request.user)
+        details = request.data.pop('details', None)
+        serializer = self.get_serializer(instance=self.get_object(), data=request.data, partial=True)
+
+        #handle details - validate and save them to the instance
+        if details is not None:
+            offer_types = []
+            for detail in details:
+                if 'offer_type' in detail:
+                    offer_types.append(detail['offer_type'])
+            
+            # get the offer - filter the respective details which needs an update
+            offer = self.get_object()
+            offer_details = OfferDetail.objects.filter(
+                Q(offer=offer) & Q(offer_type__in = offer_types)
+            )
+
+            # loop the patch list
+            type_map = {d.offer_type: d for d in offer_details}
+            for patchdetail in details:
+                instance = type_map.get(patchdetail['offer_type'])
+                detailserializer = OfferDetailSerializer(instance, data=patchdetail, partial=True)
+                detailserializer.is_valid(raise_exception=True)
+                detailserializer.save()
+
+
+        # proceed with the offer
+        serializer.is_valid(raise_exception=True)
+        serializer.save(user=marketuser)
+        # get new serializer and send this data back
+        res_serializer = OfferReadAfterWriteSerializer(serializer.instance)
+        return Response(res_serializer.data, status=HTTP_201_CREATED)
+
 
 class OfferDetailView(RetrieveAPIView):
     serializer_class = OfferDetailSerializer
     queryset = OfferDetail.objects.all()
-    permission_classes = [IsAuthenticated]
+
 
 class OrderViewset(ModelViewSet):
     serializer_class = OrderSerializer
@@ -151,10 +229,13 @@ class OrderViewset(ModelViewSet):
         )
 
     def create(self, request, *args, **kwargs):
+        detailid = request.data.get("offer_detail_id", None)
+        if detailid is None:
+            raise NotAcceptable('Offer detail is must be provided', code=HTTP_400_BAD_REQUEST)
         try:
-            offerdetail = OfferDetail.objects.get(id=request.data["offer_detail_id"])
+            offerdetail = OfferDetail.objects.get(id=detailid)
         except OfferDetail.DoesNotExist:
-            return Response({'error': 'Offerdetail not found.'}, status=HTTP_400_BAD_REQUEST)
+            return Response({'error': 'Offerdetail not found.'}, status=HTTP_404_NOT_FOUND)
 
         try:
             marketuser = MarketUser.objects.get(user=request.user)
@@ -208,6 +289,7 @@ class OrderViewset(ModelViewSet):
 
         return Response(status=HTTP_204_NO_CONTENT)
 
+
 class BusinessOrderCount(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -217,13 +299,14 @@ class BusinessOrderCount(APIView):
         try:
             business_user = MarketUser.objects.get(pk=business_user_id)
         except MarketUser.DoesNotExist:
-            return Response({"error": "No business user found with this id."}, status=HTTP_404_NOT_FOUND)
+            return Response({"error": "No user found with this id."}, status=HTTP_404_NOT_FOUND)
 
-        orders_count = Order.objects.filter(Q(status="in progress") & Q(business_user__pk=business_user_id)).count()
+        orders_count = Order.objects.filter(Q(status="in_progress") & Q(business_user__pk=business_user_id)).count()
         return Response({"order_count": orders_count}, status=HTTP_200_OK)
 
+
 class BusinessCompletedOrderCount(APIView):
-    permission_classes = [IsAuthenticated, IsBusiness]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
         business_user_id = kwargs.get('pk')
@@ -236,8 +319,10 @@ class BusinessCompletedOrderCount(APIView):
         orders_count = Order.objects.filter(Q(status="completed") & Q(business_user__pk=business_user_id)).count()
         return Response({"completed_order_count": orders_count}, status=HTTP_200_OK)
 
+
 class ReviewViewset(ModelViewSet):
     serializer_class = ReviewSerializer
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         business_user_id = self.request.query_params.get('business_user_id')
@@ -280,7 +365,7 @@ class ReviewViewset(ModelViewSet):
 
         reviews = Review.objects.filter(business_user=business_user.pk, reviewer=reviewer.pk)
         if len(reviews) >= 1:
-            return Response("No new reviews allowed", status=HTTP_403_FORBIDDEN)
+            return Response("No new reviews allowed", status=HTTP_400_BAD_REQUEST)
 
         data = request.data.copy()
         serializer = self.get_serializer(data=data)
@@ -336,6 +421,7 @@ class ReviewViewset(ModelViewSet):
         review.delete()
 
         return Response('Review deleted', status=HTTP_204_NO_CONTENT)
+
 
 class BaseInfoView(APIView):
 

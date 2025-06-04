@@ -31,19 +31,18 @@ class Offer(models.Model):
     min_price = models.IntegerField(blank=True, null=True)
     min_delivery_time = models.IntegerField(blank=True, null=True)
 
-
     def __str__(self):
         return f"{self.title} [{self.pk}]"
 
 #DL wie Basic Design
 class OfferDetail(models.Model):
+    offer = models.ForeignKey(Offer, related_name='details', on_delete=models.CASCADE)
     title = models.CharField(max_length=100)
     revisions = models.IntegerField()
     delivery_time_in_days = models.IntegerField()
     price = models.DecimalField(max_digits=6, decimal_places=2)
     features = models.JSONField(default=list)
     offer_type = models.CharField(max_length=30)
-    offer = models.ForeignKey(Offer, related_name='details', on_delete=models.CASCADE)
 
     def __str__(self):
         return f"{self.title} [{self.pk}]"

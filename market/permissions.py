@@ -1,5 +1,6 @@
 from rest_framework.permissions import BasePermission
-from rest_framework.exceptions import AuthenticationFailed
+from rest_framework.exceptions import PermissionDenied
+from rest_framework.status import HTTP_403_FORBIDDEN
 
 from market.models import MarketUser
 
@@ -8,15 +9,10 @@ class isOwnerOr405(BasePermission):
     Checking if the request user is the owner
     """
     def has_object_permission(self, request, view, obj):
-        #obj = Marketuser
-        #request.user = User obj
-
         request_marketuser = MarketUser.objects.get(user = request.user)
 
-        print(obj.user != request_marketuser)
-
-        if obj.user == request_marketuser:
-            raise AuthenticationFailed()
+        if obj.user != request_marketuser:
+            raise PermissionDenied()
         return True
 
 class IsBusiness(BasePermission):
