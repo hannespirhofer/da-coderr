@@ -1,3 +1,4 @@
+import random
 from django.db import models
 from django.contrib.auth.models import User
 from market.constants import CUSTOMER_TYPE
@@ -28,8 +29,8 @@ class Offer(models.Model):
     description = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    min_price = models.IntegerField(blank=True, null=True)
-    min_delivery_time = models.IntegerField(blank=True, null=True)
+    min_price = models.IntegerField(blank=True, null=True, default=int(random.random()*100))
+    min_delivery_time = models.IntegerField(blank=True, null=True, default=int(random.random()*100))
 
     def __str__(self):
         return f"{self.title} [{self.pk}]"
