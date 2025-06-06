@@ -3,9 +3,10 @@ from django.shortcuts import get_object_or_404
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
 from rest_framework.authtoken.models import Token
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter
 from rest_framework.generics import RetrieveUpdateAPIView, ListAPIView, RetrieveAPIView
-from rest_framework.exceptions import NotFound, PermissionDenied, NotAcceptable
+from rest_framework.exceptions import NotFound, PermissionDenied, NotAcceptable, ParseError, AuthenticationFailed
 from rest_framework.status import HTTP_200_OK, HTTP_201_CREATED, HTTP_204_NO_CONTENT, HTTP_400_BAD_REQUEST, HTTP_403_FORBIDDEN, HTTP_404_NOT_FOUND
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -125,7 +126,7 @@ class OfferViewset(ModelViewSet):
     queryset = Offer.objects.all()
     filterset_class = OfferFilter
     ordering_fields = ['updated_at', 'min_price']
-    filter_backends = [SearchFilter]
+    filter_backends = [SearchFilter, DjangoFilterBackend]
     search_fields = ['title', 'description']
     pagination_class = CustomPagination
 
@@ -139,9 +140,14 @@ class OfferViewset(ModelViewSet):
         return OfferReadSerializer
 
     def get_permissions(self):
-        if self.action in ['list', 'retrieve']:
+        if self.action in ['list']:
             return [AllowAny()]
+        if self.action in ['retrieve']:
+            return [IsAuthenticated()]
+        if self.action in ['create']:
+            return [IsAuthenticated(), IsBusiness()]
         return [IsAuthenticated(), IsBusiness(), isOfferOwner()]
+    
 
     def get_serializer_context(self):
         is_list_action = self.action == 'list'
@@ -156,10 +162,12 @@ class OfferViewset(ModelViewSet):
         
         # Abort early if details not ok
         if len(details) != 3:
-            raise NotAcceptable('Details are not correct', code=HTTP_400_BAD_REQUEST)
+            raise ParseError('Details must be a list with 3 items.')
         
         serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        if serializer.is_valid() is False:
+            raise ParseError('Offer Data is wrong.')
+
         serializer.save(user=marketuser)
         
         #handle details - validate and save them to the instance
@@ -205,7 +213,7 @@ class OfferViewset(ModelViewSet):
         serializer.save(user=marketuser)
         # get new serializer and send this data back
         res_serializer = OfferReadAfterWriteSerializer(serializer.instance)
-        return Response(res_serializer.data, status=HTTP_201_CREATED)
+        return Response(res_serializer.data, status=HTTP_200_OK)
 
 
 class OfferDetailView(RetrieveAPIView):
@@ -230,20 +238,22 @@ class OrderViewset(ModelViewSet):
 
     def create(self, request, *args, **kwargs):
         detailid = request.data.get("offer_detail_id", None)
-        if detailid is None:
-            raise NotAcceptable('Offer detail is must be provided', code=HTTP_400_BAD_REQUEST)
+
+        if detailid is None or not isinstance(detailid, int):
+            raise ParseError('Only numbers allowed.')
+
         try:
             offerdetail = OfferDetail.objects.get(id=detailid)
         except OfferDetail.DoesNotExist:
-            return Response({'error': 'Offerdetail not found.'}, status=HTTP_404_NOT_FOUND)
+            raise NotFound('Offerdetail not found.')
 
         try:
             marketuser = MarketUser.objects.get(user=request.user)
         except MarketUser.DoesNotExist:
-            return Response({'error': 'Only MarketUser are allowed to create Orders.'}, status=HTTP_400_BAD_REQUEST)
+            raise NotFound('User not found.')
 
         if marketuser.type != "customer":
-            return Response({'error': 'Only Customers are allowed to create Orders.'}, status=HTTP_403_FORBIDDEN)
+            return PermissionDenied('Only Customers are allowed to create Orders.')
 
 
         order = Order.objects.create(
@@ -259,18 +269,21 @@ class OrderViewset(ModelViewSet):
     def partial_update(self, request, *args, **kwargs):
         order_id = self.kwargs.get('pk')
 
+        if order_id is not None:
+            try:
+                order_id = int(order_id)
+            except ValueError:
+                raise ParseError('Order pk must be an int')
+
         try:
             order = Order.objects.get(id=order_id)
         except Order.DoesNotExist:
-            return Response({'error': 'Order not found.'}, status=HTTP_400_BAD_REQUEST)
+            raise NotFound('Order not found.')
 
         try:
             marketuser = MarketUser.objects.get(user=request.user)
         except MarketUser.DoesNotExist:
-            return Response({'error': 'MarketUser not found.'}, status=HTTP_400_BAD_REQUEST)
-
-        # if order.customer_user != marketuser:
-        #     return Response({'error': 'You are not the owner and cannot perform update on this order.'}, status=HTTP_403_FORBIDDEN)
+            raise NotFound('User not found.')
 
         serializer = self.get_serializer(order, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
@@ -342,10 +355,6 @@ class ReviewViewset(ModelViewSet):
 
         return queryset
 
-    def get_permissions(self):
-        if (self.request.method in ['POST', 'PATCH', 'UPDATE', 'DELETE']):
-            return [IsAuthenticated(), IsCustomer()]
-        return [IsAuthenticated()]
 
     def get_serializer_class(self):
         if (self.action in ['create', 'update', 'partial_update']):
@@ -356,16 +365,19 @@ class ReviewViewset(ModelViewSet):
         try:
             reviewer = MarketUser.objects.get(user=request.user)
         except MarketUser.DoesNotExist:
-            return Response('No customer account found with this id.', status=HTTP_403_FORBIDDEN)
+            raise ParseError('No customer account found with this id.')
+
+        if reviewer.type != 'customer':
+            raise AuthenticationFailed('Only customers can leave reviews')
 
         try:
             business_user = MarketUser.objects.get(pk=request.data.get("business_user"))
         except MarketUser.DoesNotExist:
-            return Response('No business account found with this id.', status=HTTP_403_FORBIDDEN)
+            raise ParseError('No business account found with this id.')
 
         reviews = Review.objects.filter(business_user=business_user.pk, reviewer=reviewer.pk)
         if len(reviews) >= 1:
-            return Response("No new reviews allowed", status=HTTP_400_BAD_REQUEST)
+            raise PermissionDenied("You already made a review on this user. Delete or patch this one.")
 
         data = request.data.copy()
         serializer = self.get_serializer(data=data)
@@ -376,19 +388,20 @@ class ReviewViewset(ModelViewSet):
 
         return Response(full_review, status=HTTP_201_CREATED)
 
-    def update(self, request, *args, **kwargs):
-        
+    def partial_update(self, request, *args, **kwargs):
         review_id = self.kwargs.get("pk")
+        request.data.pop("business_user", None)
+
         if review_id is not None:
             try:
                 review = Review.objects.get(pk=review_id)
             except Review.DoesNotExist:
-                raise NotFound('Review with this id not found', code=HTTP_400_BAD_REQUEST)
+                raise ParseError('Review not found')
         
         try:
             request_marketuser = MarketUser.objects.get(user=self.request.user)
         except MarketUser.DoesNotExist:
-            raise NotFound('No Profile found.', code=HTTP_400_BAD_REQUEST)
+            raise ParseError('Profile not found.')
         
         review_user = review.reviewer
         if not review_user:

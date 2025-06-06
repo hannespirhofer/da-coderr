@@ -1,7 +1,7 @@
 import random
 from django.db import models
 from django.contrib.auth.models import User
-from market.constants import CUSTOMER_TYPE
+from market.constants import CUSTOMER_TYPE, ORDER_STATUS
 
 class MarketUser(models.Model):
     #registration fields
@@ -16,7 +16,7 @@ class MarketUser(models.Model):
     tel = models.CharField(max_length=30, blank=True, null=True)
     description = models.CharField(max_length=150, blank=True, null=True)
     working_hours = models.CharField(max_length=15, blank=True, null=True)
-    type = models.CharField(choices=CUSTOMER_TYPE, max_length=20)
+    type = models.CharField(choices=CUSTOMER_TYPE, max_length=50)
 
     def __str__(self):
         return (f"Marketuser PK: {self.pk}; User PK {self.user.pk} - {self.first_name} {self.last_name} ({self.user.username} [{self.type}])")
@@ -55,7 +55,7 @@ class Order(models.Model):
     customer_user = models.ForeignKey(MarketUser, on_delete=models.PROTECT, related_name='order_customer')
     business_user = models.ForeignKey(MarketUser, on_delete=models.PROTECT, related_name='order_business')
     # get title, revisions, delivery_time, price, features and type from offerdetail here too
-    status = models.CharField(max_length=30)
+    status = models.CharField(choices=ORDER_STATUS, default='inprogress' ,max_length=30)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

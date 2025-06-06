@@ -1,6 +1,7 @@
 from rest_framework.permissions import BasePermission
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.status import HTTP_403_FORBIDDEN
+from market.models import Offer
 
 from market.models import MarketUser
 
@@ -10,9 +11,10 @@ class isOwnerOr405(BasePermission):
     """
     def has_object_permission(self, request, view, obj):
         request_marketuser = MarketUser.objects.get(user = request.user)
+        obj_marketuser = MarketUser.objects.get(pk=obj.user.pk)
 
-        if obj.user != request_marketuser:
-            raise PermissionDenied()
+        if obj_marketuser != request_marketuser:
+            raise PermissionDenied('You are not allowed to patch this profile', code=HTTP_403_FORBIDDEN)
         return True
 
 class IsBusiness(BasePermission):
@@ -55,4 +57,6 @@ class isOfferOwner(BasePermission):
             marketuser = MarketUser.objects.get(user=request.user)
         except MarketUser.DoesNotExist:
             return False
+        import pdb
+        pdb.set_trace()
         return obj.user == marketuser
