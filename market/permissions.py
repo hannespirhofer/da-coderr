@@ -57,6 +57,4 @@ class isOfferOwner(BasePermission):
             marketuser = MarketUser.objects.get(user=request.user)
         except MarketUser.DoesNotExist:
             return False
-        import pdb
-        pdb.set_trace()
         return obj.user == marketuser

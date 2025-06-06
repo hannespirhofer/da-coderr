@@ -15,7 +15,7 @@ class MarketUser(models.Model):
     location = models.CharField(max_length=30, blank=True, null=True)
     tel = models.CharField(max_length=30, blank=True, null=True)
     description = models.CharField(max_length=150, blank=True, null=True)
-    working_hours = models.CharField(max_length=15, blank=True, null=True)
+    working_hours = models.CharField(max_length=150, blank=True, null=True)
     type = models.CharField(choices=CUSTOMER_TYPE, max_length=50)
 
     def __str__(self):
