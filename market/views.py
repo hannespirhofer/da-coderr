@@ -168,7 +168,16 @@ class OfferViewset(ModelViewSet):
         if serializer.is_valid() is False:
             raise ParseError('Offer Data is wrong.')
 
-        serializer.save(user=marketuser)
+        # get min_price from details
+        minn_price = int(min([item["price"] for item in details]))
+        # get min_delivery_time from details
+        minn_delivery_time = int(min([item["delivery_time_in_days"] for item in details]))
+        
+        serializer.save(
+            user=marketuser,
+            min_price=minn_price,
+            min_delivery_time=minn_delivery_time
+            )
         
         #handle details - validate and save them to the instance
         if details is not None:
@@ -239,8 +248,10 @@ class OrderViewset(ModelViewSet):
     def create(self, request, *args, **kwargs):
         detailid = request.data.get("offer_detail_id", None)
 
-        if detailid is None or not isinstance(detailid, int):
-            raise ParseError('Only numbers allowed.')
+        try:
+            int(detailid)
+        except ValueError:
+            raise ValueError("The id provided must be an integer.")
 
         try:
             offerdetail = OfferDetail.objects.get(id=detailid)
